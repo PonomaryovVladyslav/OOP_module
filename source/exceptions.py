@@ -27,3 +27,15 @@ class RecordInRecordsError(Exception):
 
 class IncorrectInputTypeError(Exception):
     """ Raised if input type is incorrect """
+
+
+class IncorrectModeError(Exception):
+    """ Raised if mode is incorrect """
+
+
+class IncorrectLevelError(Exception):
+    """ Raised if level is incorrect """
+
+
+class IncorrectFightResult(Exception):
+    """ Raised if result of battle is incorrect """

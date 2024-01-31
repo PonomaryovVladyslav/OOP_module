@@ -4,7 +4,7 @@ from settings import MODES, SCORE_FILE
 from source.exceptions import GameOver, EnemyDown, QuitApp, RecordInRecordsError
 from source.models import Player, Enemy, Battle
 from source.record import GameRecord
-from source.validations import is_valid_input_mode, is_valid_menu_input
+from source.validations import is_valid_input_mode, is_valid_input_menu
 
 __version__ = '1'
 
@@ -17,6 +17,7 @@ class Game:
     mode: str
     player: Player
     enemy: Enemy
+    game_record: GameRecord
 
     def __init__(self):
         """
@@ -58,10 +59,10 @@ class Game:
         """
         Saves score to board file
         """
-        game_record = GameRecord(self.mode)
+        self.game_record = GameRecord(self.mode)
         try:
-            game_record.add_record(self.player)
-            game_record.save_to_file()
+            self.game_record.add_record_from_player(self.player)
+            self.game_record.save_to_file()
         except RecordInRecordsError:
             print('Record is already in list')
 
@@ -77,7 +78,6 @@ class Game:
                 try:
                     battle.fight()
                 except EnemyDown:
-                    self.player.on_enemy_down(self.mode)
                     self.new_enemy()
                     print("\nNew enemy comes.")
         except GameOver:
@@ -108,9 +108,8 @@ def main_menu_input() -> str:
     Menu user input
     """
     while True:
-
-        menu_choice = input(InputGenerator('main_menu').text)
-        if is_valid_menu_input(menu_choice):
+        menu_choice = input(InputGenerator("main_menu").text)
+        if is_valid_input_menu(menu_choice):
             return menu_choice
         print('Incorrect input.')
 

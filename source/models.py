@@ -4,7 +4,8 @@ from random import randint
 
 from source.exceptions import GameOver, EnemyDown, QuitApp, WhiteSpaceInputError, EmptyInputError
 from source.input_generator import InputGenerator
-from source.validations import is_valid_input_attack, validate_name
+from source.validations import is_valid_input_attack, validate_name, validate_mode, validate_level, \
+    validate_fight_result
 from settings import (
     ALLOWED_ATTACKS,
     MODE_NORMAL,
@@ -27,6 +28,8 @@ class Enemy:
         """
         Initializes the enemy instance
         """
+        validate_mode(mode)
+        validate_level(level)
         self.level = level
         self.lives = self.level if mode == MODE_NORMAL else self.level * HARD_MODE_MULTIPLIER
 
@@ -100,6 +103,7 @@ class Player:
         """
         Adds score in case successful fight
         """
+        validate_mode(mode)
         self.score += POINTS_FOR_FIGHT if mode == MODE_NORMAL else POINTS_FOR_FIGHT * HARD_MODE_MULTIPLIER
 
     def on_enemy_down(self, mode):
@@ -107,6 +111,7 @@ class Player:
         Adds score on enemy down
         """
         print("Congratulation! Enemy down.")
+        validate_mode(mode)
         self.score += POINTS_FOR_KILLING if mode == MODE_NORMAL else POINTS_FOR_KILLING * HARD_MODE_MULTIPLIER
 
 
@@ -124,6 +129,7 @@ class Battle:
         """
         self.player = player
         self.enemy = enemy
+        validate_mode(mode)
         self.mode = mode
 
     def fight(self) -> None:
@@ -140,10 +146,15 @@ class Battle:
         """
         Handles results of the fight
         """
+        validate_fight_result(fight_result)
         if fight_result == 1:
             print('You attacked successfully!')
             self.player.on_win_fight(self.mode)
-            self.enemy.on_lose_fight()
+            try:
+                self.enemy.on_lose_fight()
+            except EnemyDown:
+                self.player.on_enemy_down(self.mode)
+                raise
         elif fight_result == -1:
             print("You missed!")
             self.player.on_lose_fight()

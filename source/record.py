@@ -1,14 +1,23 @@
 from source.exceptions import RecordInRecordsError
 from source.models import Player
-from settings import SCORE_FILE, MAX_RECORDS_NUMBER, NAME_ADDITIONAL_SPACES
+from settings import SCORE_FILE, MAX_RECORDS_NUMBER, NAME_ADDITIONAL_SPACES, ROOT_DIR
+from source.validations import validated_score_row_size, validate_mode
 
 
-def record_file_title_row(name_column_size: int) -> str:
+def record_file_title_row(name_column_size: int = 0) -> str:
     """
     Create title for a score file
     :param name_column_size: size of the column for name
     """
+    name_column_size = validated_score_row_size(name_column_size)
     return f'{"NAME".ljust(name_column_size)}{"MODE".ljust(10)}SCORE\n'
+
+
+def get_score_file_path() -> str:
+    """
+    Get score file path
+    """
+    return f'{ROOT_DIR}/{SCORE_FILE}'
 
 
 class PlayerRecord:
@@ -27,6 +36,7 @@ class PlayerRecord:
         :param score: - score of the player
         """
         self.name = name
+        validate_mode(mode)
         self.mode = mode
         self.score = score
 
@@ -42,19 +52,35 @@ class PlayerRecord:
         """
         return len(self.name) > len(other.name)
 
+    def __str__(self):
+        """
+        To print pretty text :)
+        """
+        size = len("NAME") + 1
+        if len(self.name) > size:
+            size = len(self.name) + 1
+
+        return self.as_file_row(size)
+
     def as_file_row(self, name_column_size: int) -> str:
         """
         Create record for a score file
         :param name_column_size: - size of the column for name
         """
+        name_column_size = validated_score_row_size(name_column_size)
         return f'{self.name.ljust(name_column_size)}{self.mode.ljust(10)}{self.score}\n'
+
+    @classmethod
+    def from_player(cls, player: Player, mode: str) -> "PlayerRecord":
+        validate_mode(mode)
+        return PlayerRecord(name=player.name, mode=mode, score=player.score)
 
 
 class GameRecord:
     """
     Class for full game records
     """
-    records: list[PlayerRecord] = []
+    records: list[PlayerRecord]
     mode: str
 
     def __init__(self, mode: str):
@@ -62,6 +88,7 @@ class GameRecord:
         Initialize the game record
         :param mode: - mode of the game
         """
+        validate_mode(mode)
         self.mode = mode
         self.read_records()
 
@@ -69,12 +96,18 @@ class GameRecord:
         """
         Read records from score file
         """
-        with open(SCORE_FILE, 'r') as file:
-            lines = file.readlines()
-        del lines[0]  # remove table title
-        for line in lines:
-            name, mode, score = line.split()
-            self.records.append(PlayerRecord(name, mode, int(score)))
+        self.records = []
+        try:
+            with open(get_score_file_path(), 'r') as file:
+                lines = file.readlines()
+            del lines[0]  # remove table title
+            for line in lines:
+                name, mode, score = line.split()
+                self.records.append(PlayerRecord(name, mode, int(score)))
+        except FileNotFoundError:
+            with open(get_score_file_path(), 'w') as file:
+                file.write(record_file_title_row())
+            self.read_records()
 
     def _validate_record(self, record: PlayerRecord) -> None:
         """
@@ -83,46 +116,54 @@ class GameRecord:
         if record in self.records:
             raise RecordInRecordsError
 
-    def add_record(self, player: Player) -> None:
+    def add_record_from_player(self, player: Player) -> None:
         """
-        Add a record to the game records
+        Add a record from player
         :param player: based on player
         """
-        player_record = PlayerRecord(player.name, self.mode, player.score)
+        player_record = PlayerRecord.from_player(player, self.mode)
+        self.add_record(player_record)
+
+    def add_record(self, player_record: PlayerRecord) -> None:
+        """
+        Add a record to the game records
+        :param player_record: based on player
+        """
         try:
             self._validate_record(player_record)
             self.records.append(player_record)
         except RecordInRecordsError:
             raise
 
-    def _sort_records(self) -> list[PlayerRecord]:
+    def _sort_records(self):
         """
         Sort the records by score
         """
-        return sorted(self.records, key=lambda x: int(x.score), reverse=True)
+        self.records = sorted(self.records, key=lambda x: int(x.score), reverse=True)
 
-    @staticmethod
-    def _cut_records(records: list[PlayerRecord]) -> list[PlayerRecord]:
+    def _cut_records(self):
         """
         Cut records by max size of score table
         """
-        return records[:MAX_RECORDS_NUMBER]
+        self.records = self.records[:MAX_RECORDS_NUMBER]
 
-    @property
-    def _prepared_records_to_save(self) -> list[PlayerRecord]:
+    def _prepare_records_to_save(self):
         """
         Prepare the records to save
         """
-        records = self._sort_records()
-        return self._cut_records(records)
+        self._sort_records()
+        self._cut_records()
 
     def save_to_file(self) -> None:
         """
         Save scores to the file
         """
-        records = self._prepared_records_to_save
-        name_column_size = len(max(records).name) + NAME_ADDITIONAL_SPACES
-        with open(SCORE_FILE, 'w') as file:
+        self._prepare_records_to_save()
+        name_column_size = len(max(self.records).name) + NAME_ADDITIONAL_SPACES
+        name_column_size = validated_score_row_size(name_column_size)
+        if name_column_size < len("NAME"):
+            name_column_size = len("NAME")
+        with open(get_score_file_path(), 'w') as file:
             file.write(record_file_title_row(name_column_size))
-            for record in records:
+            for record in self.records:
                 file.write(record.as_file_row(name_column_size))

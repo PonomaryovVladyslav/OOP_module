@@ -1,4 +1,5 @@
 /.venv
 scores.txt
+scores_test.txt
 /.idea
 */__pycache__/
